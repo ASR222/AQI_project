@@ -32,12 +32,15 @@ def main(argv: list[str] | None = None) -> int:
         classifier, classes = image_model.predict_proba, image_model.CLASSES
     tracker = None
     if not a.no_track:
-        from .tracking import Tracker
+        from .tracking import IsolatedTracker, Tracker
 
-        tracker = Tracker(weights=a.weights, conf=a.conf)
+        # TensorFlow and PyTorch can't share a process in some builds: isolate YOLO if the AQI model runs too.
+        tracker = Tracker(weights=a.weights, conf=a.conf) if a.no_aqi else IsolatedTracker(weights=a.weights, conf=a.conf)
 
     res = analyse(a.video, classifier, classes, tracker, sample_every_s=a.sample_every, window=a.window,
                   stride=a.stride, track_stride=a.track_stride, annotated_out=a.annotated)
+    if hasattr(tracker, "close"):
+        tracker.close()
     if res.get("objects") and not a.keep_tracks:
         res["objects"].pop("tracks", None)
     if res.get("aqi"):

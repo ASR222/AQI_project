@@ -40,6 +40,8 @@ curl -F file=@photo.jpg localhost:8000/predict
 
 `aqi_model.keras` (phase-1 weights) is not in git. Put it in the repo root or set `AQI_MODEL_PATH`. YOLO weights download on first use, or you can set `YOLO_WEIGHTS`.
 
+TensorFlow (AQI model) and PyTorch (YOLO) can segfault when loaded in the same Python process. When both run, as in the API or the CLI without `--no-aqi`, the tracker runs in a separate worker process (`IsolatedTracker`), which loads the model once and reuses it.
+
 ### Tests
 
 ```bash

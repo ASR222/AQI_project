@@ -111,3 +111,23 @@ def test_tracker_on_real_clip():
     assert sum(s["unique_objects"].values()) > 0
     ids = [t.track_id for t in res.tracks]
     assert len(ids) == len(set(ids))
+
+
+@pytest.mark.skipif(not (YOLO and DEMO), reason="set YOLO_WEIGHTS and DEMO_CLIP to run the tracker test")
+def test_isolated_tracker_alongside_tensorflow(tmp_path):
+    """TensorFlow in this process + YOLO in a worker: must not crash and must match the in-process tracker."""
+    tf = pytest.importorskip("tensorflow")
+    from aqivision.video.tracking import IsolatedTracker
+
+    ins = [tf.keras.Input((224, 224, 3)) for _ in range(3)]
+    pooled = [tf.keras.layers.GlobalAveragePooling2D()(i) for i in ins]
+    model = tf.keras.Model(ins, tf.keras.layers.Dense(3, activation="softmax")(tf.keras.layers.Concatenate()(pooled)))
+
+    def classifier(rgb_frames):
+        x = np.stack([np.asarray(f[:224, :224], np.float32) / 255 for f in rgb_frames])
+        return model.predict([x, x, x], verbose=0)
+
+    with IsolatedTracker(weights=YOLO) as tracker:
+        out = pipeline.analyse(DEMO, classifier=classifier, classes=CLASSES, tracker=tracker)
+    assert out["aqi"] is not None and out["objects"]["frames_processed"] > 0
+    assert sum(out["objects"]["unique_objects"].values()) > 0

@@ -156,6 +156,54 @@ class Tracker:
         return result
 
 
+_worker_tracker: Tracker | None = None
+
+
+def _init_worker(kwargs: dict) -> None:
+    global _worker_tracker
+    _worker_tracker = Tracker(**kwargs)
+
+
+def _run_in_worker(video: str, stride: int, max_frames: int | None, annotated_out: str | None) -> TrackingResult:
+    assert _worker_tracker is not None
+    return _worker_tracker.run(video, stride=stride, max_frames=max_frames, annotated_out=annotated_out)
+
+
+class IsolatedTracker:
+    """Same interface as Tracker, but YOLO/PyTorch live in a separate (spawned) worker process.
+
+    Loading TensorFlow (the phase-1 AQI model) and PyTorch (Ultralytics) in one Python process
+    segfaults with some wheel combinations (seen with tensorflow-cpu 2.21 + torch 2.14, in either
+    import order). Use this whenever the AQI classifier runs in the same process, e.g. the API.
+    The model is loaded once in the worker and reused across calls.
+    """
+
+    def __init__(self, **tracker_kwargs):
+        import multiprocessing as mp
+        from concurrent.futures import ProcessPoolExecutor
+
+        self._pool = ProcessPoolExecutor(
+            max_workers=1,
+            mp_context=mp.get_context("spawn"),  # fresh interpreter: never inherits TensorFlow
+            initializer=_init_worker,
+            initargs=(tracker_kwargs,),
+        )
+
+    def run(self, video, stride: int = 1, max_frames: int | None = None, annotated_out=None) -> TrackingResult:
+        fut = self._pool.submit(_run_in_worker, str(video), stride, max_frames,
+                                str(annotated_out) if annotated_out else None)
+        return fut.result()
+
+    def close(self) -> None:
+        self._pool.shutdown(wait=True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
 def counts_to_array(per_frame_counts: list[dict[str, int]], labels: list[str]) -> np.ndarray:
     """Per-frame counts -> (N, len(labels)) int array (for plots / time series)."""
     return np.array([[c.get(k, 0) for k in labels] for c in per_frame_counts], dtype=int)

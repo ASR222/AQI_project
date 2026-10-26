@@ -31,15 +31,22 @@ _tracker = None
 def get_tracker():
     global _tracker
     if _tracker is None:
-        from aqivision.video.tracking import Tracker
+        # Separate process: TensorFlow (AQI model) and PyTorch (YOLO) can crash when loaded together.
+        from aqivision.video.tracking import IsolatedTracker
 
-        _tracker = Tracker(weights=YOLO_WEIGHTS)
+        _tracker = IsolatedTracker(weights=YOLO_WEIGHTS)
     return _tracker
 
 
 @app.on_event("startup")
 def _load():
     image_model.load_model()  # fail fast if aqi_model.keras is missing
+
+
+@app.on_event("shutdown")
+def _close_tracker():
+    if _tracker is not None:
+        _tracker.close()
 
 
 @app.post("/predict")
