@@ -1,7 +1,7 @@
 [project]
 name = "aqi-project"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "AQI Vision: image-based AQI classification (phase 1) and video analysis with detection + tracking (phase 2)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -14,3 +14,16 @@ dependencies = [
     "tensorflow>=2.16.1",
     "uvicorn>=0.44.0",
 ]
+
+[project.optional-dependencies]
+# YOLO11 detection + ByteTrack tracking (Ultralytics, AGPL-3.0)
+video = [
+    "ultralytics>=8.3.0",
+    "lap>=0.5.12",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

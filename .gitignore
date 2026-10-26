@@ -19,3 +19,10 @@ wheels/
 # Node modules
 node_modules/
 .next/
+
+# Model weights and media (never commit)
+*.pt
+*.onnx
+*.mp4
+*.mov
+runs/
